@@ -3,7 +3,7 @@ FROM python:3.9-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖，包括 gi 所需的依赖
+# 安装系统依赖，包括 gi 所需的依赖和构建工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bluez \
     bluetooth \
@@ -13,12 +13,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     libgirepository1.0-dev \
     gir1.2-glib-2.0 \
+    gcc \
+    g++ \
+    pkg-config \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # 先复制 requirements.txt 以优化层缓存
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt \
+    && apt-get purge -y --auto-remove gcc g++ pkg-config
 
 # 创建默认组和用户（UID/GID 将在运行时动态调整）
 RUN groupadd -g 1000 bluezgroup && \
@@ -40,7 +44,7 @@ EXPOSE 5000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000 || exit 1
+    CMD curl -f http://localhost:5000 || exit 1
 
 # 设置入口点
 ENTRYPOINT ["./entrypoint.sh"]

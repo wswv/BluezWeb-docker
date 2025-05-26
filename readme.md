@@ -132,6 +132,25 @@ PyGObject Dependency: The gi module (via PyGObject) is required for dasbus. Ensu
 
 Troubleshooting
 
+ERROR: failed to solve: process "/bin/sh -c pip3 install --no-cache-dir -r requirements.txt" did not complete successfully: exit code: 1:
+
+Cause: Failure to install Python dependencies, likely PyGObject, due to missing build tools or system dependencies.
+Fix:
+Ensure gcc, g++, pkg-config, libgirepository1.0-dev, and gir1.2-glib-2.0 are installed in the Dockerfile.
+Verify PyGObject is in requirements.txt.
+Check build logs for specific errors (e.g., Failed building wheel for PyGObject).
+Rebuild the image:docker-compose build
+
+
+Test locally:docker run -it bluetooth-manager bash
+pip3 install -r requirements.txt
+
+
+If using GitHub Actions, ensure the workflow rebuilds and pushes the updated image.
+
+
+
+
 ModuleNotFoundError: No module named 'gi':
 
 Cause: The PyGObject module is missing, required by dasbus for D-Bus communication.
@@ -168,7 +187,10 @@ Ensure bluez is installed in the Dockerfile:docker exec <container_id> dpkg -l |
 
 
 Verify the correct path in entrypoint.sh (/usr/libexec/bluetooth/bluetoothd).
-Rebuild the image if bluez is missing:docker-compose build
+Find the correct path:docker exec <container_id> find / -name bluetoothd
+
+
+Rebuild the image if necessary:docker-compose build
 
 
 
