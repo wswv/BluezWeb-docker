@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bluetooth Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        async function scanDevices() {
+            document.getElementById('status').innerText = 'Scanning...';
+            const response = await fetch('/api/scan');
+            const data = await response.json();
+            setTimeout(getDevices, 12000); // 等待扫描完成
+        }
+
+        async function getDevices() {
+            const response = await fetch('/api/devices');
+            const devices = await response.json();
+            const list = document.getElementById('devices');
+            list.innerHTML = '';
+            devices.forEach(device => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center justify-between p-2 border-b';
+                li.innerHTML = `
+                    <span>${device.name} (${device.address}) ${device.paired ? '[Paired]' : ''} ${device.connected ? '[Connected]' : ''}</span>
+                    <div>
+                        ${!device.paired ? `<button class="bg-blue-500 text-white px-2 py-1 rounded mr-2" onclick="pairDevice('${device.address}')">Pair</button>` : ''}
+                        ${device.paired && !device.connected ? `<button class="bg-green-500 text-white px-2 py-1 rounded mr-2" onclick="connectDevice('${device.address}')">Connect</button>` : ''}
+                        ${device.connected ? `<button class="bg-red-500 text-white px-2 py-1 rounded mr-2" onclick="disconnectDevice('${device.address}')">Disconnect</button>` : ''}
+                        ${device.paired ? `<button class="bg-purple-500 text-white px-2 py-1 rounded" onclick="viewServices('${device.address}')">View Services</button>` : ''}
+                    </div>
+                `;
+                list.appendChild(li);
+            });
+            document.getElementById('status').innerText = 'Scan complete';
+        }
+
+        async function pairDevice(address) {
+            const response = await fetch(`/api/pair/${address}`, { method: 'POST' });
+            const data = await response.json();
+            alert(data.message);
+            getDevices();
+        }
+
+        async function connectDevice(address) {
+            const response = await fetch(`/api/connect/${address}`, { method: 'POST' });
+            const data = await response.json();
+            alert(data.message);
+            getDevices();
+        }
+
+        async function disconnectDevice(address) {
+            const response = await fetch(`/api/disconnect/${address}`, { method: 'POST' });
+            const data = await response.json();
+            alert(data.message);
+            getDevices();
+        }
+
+        async function viewServices(address) {
+            const response = await fetch(`/api/services/${address}`);
+            const services = await response.json();
+            const serviceList = document.getElementById('services');
+            serviceList.innerHTML = '';
+            services.forEach(service => {
+                const li = document.createElement('li');
+                li.className = 'p-2 border-b';
+                li.innerText = `UUID: ${service.uuid} ${service.primary ? '[Primary]' : ''}`;
+                serviceList.appendChild(li);
+            });
+            document.getElementById('services-title').innerText = `GATT Services for ${address}`;
+        }
+    </script>
+</head>
+<body class="bg-gray-100 p-6">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-2xl font-bold mb-4">Bluetooth Device Manager</h1>
+        <button onclick="scanDevices()" class="bg-blue-600 text-white px-4 py-2 rounded mb-4 hover:bg-blue-700">Scan for Devices</button>
+        <p id="status" class="mb-4"></p>
+        <ul id="devices" class="bg-white rounded shadow p-4 mb-4"></ul>
+        <h2 id="services-title" class="text-xl font-semibold mb-2"></h2>
+        <ul id="services" class="bg-white rounded shadow p-4"></ul>
+    </div>
+</body>
+</html>
