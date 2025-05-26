@@ -1,4 +1,5 @@
 flask==2.3.2
 dasbus==1.7
+pycairo==1.25.1
 PyGObject==3.42.2
 python-logging-loki==0.3.1

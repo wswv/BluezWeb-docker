@@ -114,8 +114,8 @@ docker-compose down -v
 File Structure
 
 docker-compose.yml: Defines services for bluetooth-manager and optional loki logging.
-Dockerfile (optional for local build): Defines the Docker image with BlueZ, PyGObject, and Python dependencies.
-requirements.txt (optional): Lists Python dependencies (flask, dasbus, PyGObject, python-logging-loki).
+Dockerfile (optional for local build): Defines the Docker image with BlueZ, PyGObject, pycairo, and Python dependencies.
+requirements.txt (optional): Lists Python dependencies (flask, dasbus, pycairo, PyGObject, python-logging-loki).
 bluezuser.conf (optional): D-Bus configuration for bluezuser to access BlueZ interfaces, located at /etc/dbus-1/system.d/bluezuser.conf.
 entrypoint.sh (optional): Script to initialize the Bluetooth adapter, adjust UID/GID, and start the Flask app.
 app.py (optional): Flask application with Bluetooth management logic and logging.
@@ -126,27 +126,30 @@ Notes
 Pre-built Image: Ensure the image field in docker-compose.yml points to the correct registry (e.g., docker.io/<username>/bluetooth-manager:latest or ghcr.io/<username>/bluetooth-manager:latest).
 Custom UID/GID: Set via .env or environment variables to match the host system (check with id <username>).
 Loki Logging: Optional. Remove python-logging-loki from requirements.txt and related code in app.py if not using Loki. Uncomment the loki service in docker-compose.yml to enable.
-ARM Compatibility: The image must be built for ARM architecture (e.g., via GitHub Actions with ARM support).
+ARM Compatibility: The image must be built for ARM architecture (e.g., via GitHub Actions with linux/arm64 or linux/arm/v7 for older Raspberry Pi models).
 Security: The D-Bus configuration is restricted to essential BlueZ interfaces. Avoid running with --privileged.
-PyGObject Dependency: The gi module (via PyGObject) is required for dasbus. Ensure libgirepository1.0-dev and gir1.2-glib-2.0 are included in the image.
+PyGObject Dependency: The gi module (via PyGObject) and pycairo are required for dasbus. Ensure libgirepository1.0-dev, gir1.2-glib-2.0, and libcairo2-dev are included in the image.
 
 Troubleshooting
 
-ERROR: failed to solve: process "/bin/sh -c pip3 install --no-cache-dir -r requirements.txt" did not complete successfully: exit code: 1:
+ERROR: failed to solve: process "/bin/sh -c pip3 install --no-cache-dir -r requirements.txt ..." did not complete successfully: exit code: 1:
 
-Cause: Failure to install Python dependencies, likely PyGObject, due to missing build tools or system dependencies.
+Cause: Failure to install Python dependencies, likely pycairo or PyGObject, due to missing libcairo2-dev or other system dependencies.
 Fix:
-Ensure gcc, g++, pkg-config, libgirepository1.0-dev, and gir1.2-glib-2.0 are installed in the Dockerfile.
-Verify PyGObject is in requirements.txt.
-Check build logs for specific errors (e.g., Failed building wheel for PyGObject).
+Ensure libcairo2-dev, libgirepository1.0-dev, gir1.2-glib-2.0, gcc, g++, and pkg-config are installed in the Dockerfile.
+Add pycairo to requirements.txt before PyGObject.
+Upgrade pip in the Dockerfile:RUN pip3 install --no-cache-dir --upgrade pip
+
+
 Rebuild the image:docker-compose build
 
 
-Test locally:docker run -it bluetooth-manager bash
-pip3 install -r requirements.txt
+Test locally:docker run -it python:3.9-slim bash
+apt-get update && apt-get install -y libcairo2-dev libgirepository1.0-dev gir1.2-glib-2.0 gcc g++ pkg-config
+pip3 install pycairo==1.25.1 PyGObject==3.42.2
 
 
-If using GitHub Actions, ensure the workflow rebuilds and pushes the updated image.
+Check GitHub Actions logs for specific errors (e.g., Dependency "cairo" not found).
 
 
 
@@ -158,7 +161,7 @@ Fix: Ensure PyGObject is in requirements.txt and libgirepository1.0-dev, gir1.2-
 
 Verify installation:docker exec <container_id> python3 -c "import gi; print(gi.__version__)"
 
-If using GitHub Actions, ensure the workflow rebuilds and pushes the updated image.
+
 
 
 Can't open HCI socket: Address family not supported by protocol:

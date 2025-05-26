@@ -3,7 +3,10 @@ FROM python:3.9-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖，包括 gi 所需的依赖和构建工具
+# 升级 pip 以确保依赖解析
+RUN pip3 install --no-cache-dir --upgrade pip
+
+# 安装系统依赖，包括 gi 和 pycairo 所需的依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bluez \
     bluetooth \
@@ -13,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     libgirepository1.0-dev \
     gir1.2-glib-2.0 \
+    libcairo2-dev \
     gcc \
     g++ \
     pkg-config \
