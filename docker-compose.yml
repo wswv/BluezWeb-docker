@@ -4,21 +4,14 @@ services:
   bluetooth-manager:
 
     image: ghcr.io/wswv/bluezweb-docker
+    container_name: bluetooth-manager
     network_mode: host
     cap_add:
       - NET_ADMIN
     volumes:
       - /var/run/dbus:/var/run/dbus
-    ports:
-      - "5000:5000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+      - /dev:/dev
     environment:
-      - PYTHONUNBUFFERED=1
       - USER_UID=${USER_UID:-1000}
       - USER_GID=${USER_GID:-1000}
     restart: unless-stopped
