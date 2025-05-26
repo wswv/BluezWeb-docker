@@ -126,74 +126,94 @@ Notes
 Pre-built Image: Ensure the image field in docker-compose.yml points to the correct registry (e.g., docker.io/<username>/bluetooth-manager:latest or ghcr.io/<username>/bluetooth-manager:latest).
 Custom UID/GID: Set via .env or environment variables to match the host system (check with id <username>).
 Loki Logging: Optional. Remove python-logging-loki from requirements.txt and related code in app.py if not using Loki. Uncomment the loki service in docker-compose.yml to enable.
-ARM Compatibility: The image must be built for ARM architecture (e.g., via GitHub Actions with linux/arm64 or linux/arm/v7 for older Raspberry Pi models).
+ARM Compatibility: Build for linux/arm64 (Raspberry Pi 4 or newer) or linux/arm/v7 (older models like Pi 3) via GitHub Actions.
 Security: The D-Bus configuration is restricted to essential BlueZ interfaces. Avoid running with --privileged.
-PyGObject Dependency: The gi module (via PyGObject) and pycairo are required for dasbus. Ensure libgirepository1.0-dev, gir1.2-glib-2.0, and libcairo2-dev are included in the image.
+PyGObject Dependency: Requires libgirepository1.0-dev, gir1.2-glib-2.0, and libcairo2-dev for pycairo and gi module.
 
 Troubleshooting
 
+GitHub Actions Build Takes Over an Hour:
+
+Cause: Slow dependency installation (PyGObject, pycairo), multi-architecture builds, or network/bandwidth issues.
+Fix:
+Limit GitHub Actions to linux/arm64 (or linux/arm/v7 for older Pi) in the workflow:platforms: linux/arm64
+
+
+Enable Docker layer caching in the workflow:- name: Cache Docker layers
+  uses: actions/cache@v3
+  with:
+    path: /tmp/.buildx-cache
+    key: ${{ runner.os }}-buildx-${{ github.sha }}
+    restore-keys: |
+      ${{ runner.os }}-buildx-
+
+
+Use a PyPI mirror to speed up pip install:RUN pip3 install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+
+Check GitHub Actions logs for slow steps (e.g., apt-get update, pip install).
+Test locally to isolate the issue:docker build -t bluetooth-manager .
+
+
+If timeouts occur, set a job timeout in the workflow:timeout-minutes: 30
+
+
+Check GitHub status (https://www.githubstatus.com/) for service issues.
+
+
+
+
 ERROR: failed to solve: process "/bin/sh -c pip3 install --no-cache-dir -r requirements.txt ..." did not complete successfully: exit code: 1:
 
-Cause: Failure to install Python dependencies, likely pycairo or PyGObject, due to missing libcairo2-dev or other system dependencies.
+Cause: Failure to install pycairo or PyGObject due to missing libcairo2-dev.
 Fix:
-Ensure libcairo2-dev, libgirepository1.0-dev, gir1.2-glib-2.0, gcc, g++, and pkg-config are installed in the Dockerfile.
-Add pycairo to requirements.txt before PyGObject.
-Upgrade pip in the Dockerfile:RUN pip3 install --no-cache-dir --upgrade pip
-
-
-Rebuild the image:docker-compose build
-
-
+Ensure libcairo2-dev is in the Dockerfile.
+Add pycairo before PyGObject in requirements.txt.
 Test locally:docker run -it python:3.9-slim bash
 apt-get update && apt-get install -y libcairo2-dev libgirepository1.0-dev gir1.2-glib-2.0 gcc g++ pkg-config
 pip3 install pycairo==1.25.1 PyGObject==3.42.2
 
 
-Check GitHub Actions logs for specific errors (e.g., Dependency "cairo" not found).
 
 
 
 
 ModuleNotFoundError: No module named 'gi':
 
-Cause: The PyGObject module is missing, required by dasbus for D-Bus communication.
-Fix: Ensure PyGObject is in requirements.txt and libgirepository1.0-dev, gir1.2-glib-2.0 are installed in the Dockerfile. Rebuild the image:docker-compose build
+Cause: PyGObject is missing.
+Fix: Verify PyGObject in requirements.txt and libgirepository1.0-dev, gir1.2-glib-2.0 in Dockerfile. Rebuild:docker-compose build
 
-Verify installation:docker exec <container_id> python3 -c "import gi; print(gi.__version__)"
+Check:docker exec <container_id> python3 -c "import gi; print(gi.__version__)"
 
 
 
 
 Can't open HCI socket: Address family not supported by protocol:
 
-Cause: The Bluetooth adapter is not detected, disabled, or the container lacks permissions.
+Cause: Bluetooth adapter is disabled or container lacks permissions.
 Fix:
-Ensure the Bluetooth adapter is enabled on the host:sudo hciconfig hci0 up
+Enable adapter:sudo hciconfig hci0 up
 
 
-Verify Bluetooth kernel modules are loaded:lsmod | grep bluetooth
+Verify kernel modules:lsmod | grep bluetooth
 sudo modprobe bluetooth
 sudo modprobe btusb
 
 
-Check docker-compose.yml includes network_mode: host and cap_add: NET_ADMIN.
-Verify entrypoint.sh checks for the adapter (hciconfig hci0).
+Ensure docker-compose.yml has network_mode: host and cap_add: NET_ADMIN.
 
 
 
 
 sudo: /usr/lib/bluetooth/bluetoothd: command not found:
 
-Cause: The bluetoothd binary is missing or at a different path (e.g., /usr/libexec/bluetooth/bluetoothd).
+Cause: bluetoothd binary is missing or at a different path.
 Fix:
-Ensure bluez is installed in the Dockerfile:docker exec <container_id> dpkg -l | grep bluez
+Verify bluez in Dockerfile:docker exec <container_id> dpkg -l | grep bluez
 
 
-Verify the correct path in entrypoint.sh (/usr/libexec/bluetooth/bluetoothd).
-Find the correct path:docker exec <container_id> find / -name bluetoothd
-
-
-Rebuild the image if necessary:docker-compose build
+Check path in entrypoint.sh (/usr/libexec/bluetooth/bluetoothd).
+Find path:docker exec <container_id> find / -name bluetoothd
 
 
 
@@ -202,32 +222,28 @@ Rebuild the image if necessary:docker-compose build
 
 Traceback involving dasbus and gi:
 
-Cause: The dasbus library fails to import due to a missing gi module.
-Fix: Same as for ModuleNotFoundError: No module named 'gi'. Ensure PyGObject and its system dependencies are installed. Verify dasbus installation:docker exec <container_id> python3 -c "import dasbus; print(dasbus.__version__)"
+Cause: dasbus fails due to missing gi.
+Fix: Same as ModuleNotFoundError: No module named 'gi'.
 
 
-
-
-Image Not Found: Verify the image field in docker-compose.yml matches the registry path. Pull the image manually:
+Image Not Found: Verify image in docker-compose.yml. Pull manually:
 docker pull docker.io/<username>/bluetooth-manager:latest
 
 
-Bluetooth Adapter Not Found: Ensure the Raspberry Pi’s Bluetooth adapter is enabled (hciconfig hci0 up).
+Bluetooth Adapter Not Found: Enable adapter (hciconfig hci0 up).
 
-D-Bus Errors: Verify /etc/dbus-1/system.d/bluezuser.conf exists in the image and has correct permissions (644).
+D-Bus Errors: Verify /etc/dbus-1/system.d/bluezuser.conf permissions (644).
 
-Web Interface Unreachable: Check if port 5000 is open and the Raspberry Pi’s IP is correct.
+Web Interface Unreachable: Check port 5000 and Raspberry Pi IP.
 
-Permission Issues: Confirm the container has NET_ADMIN capability and the D-Bus socket is mounted.
-
-Loki Not Working: Ensure the loki service is uncommented and the URL in app.py matches (http://loki:3100/loki/api/v1/push).
+Loki Not Working: Verify loki service and URL in app.py (http://loki:3100/loki/api/v1/push).
 
 
 Future Improvements
 
 Add support for GATT characteristic read/write and notifications.
-Enhance the web interface with real-time updates using WebSockets.
-Implement authentication for the web interface and API.
+Enhance web interface with WebSockets for real-time updates.
+Implement authentication for web interface and API.
 Optimize scanning duration and device filtering.
 
 For issues or feature requests, please contact the project maintainer.

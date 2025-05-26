@@ -16,6 +16,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest # 使用最新的 Ubuntu 运行器
+    timeout-minutes: 30
     permissions:
       contents: read # 允许读取仓库内容
       packages: write # 允许写入 GitHub Packages (GHCR)
@@ -56,13 +57,13 @@ jobs:
         uses: docker/build-push-action@v6 # 构建并推送 Docker 镜像
         with:
           context: . # Dockerfile 所在的上下文路径
-          # 指定所有需要的平台架构
+          # 指定所有需要的平台架构 # linux/mips64le linux/amd64 linux/arm/v6 linux/arm/v7
           platforms: |
-            linux/amd64
+            
             linux/arm64
-            linux/arm/v7
-            linux/arm/v6
-          #linux/mips64le
+            
+            
+          
           push: ${{ github.event_name == 'push' }} # 只有在 push 事件时才推送镜像
           tags: ${{ steps.meta.outputs.tags }} # 使用上一步生成的标签
           labels: ${{ steps.meta.outputs.labels }} # 使用上一步生成的标签

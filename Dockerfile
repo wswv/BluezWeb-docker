@@ -3,10 +3,10 @@ FROM python:3.9-slim
 # 设置工作目录
 WORKDIR /app
 
-# 升级 pip 以确保依赖解析
-RUN pip3 install --no-cache-dir --upgrade pip
+# 升级 pip 并设置 PyPI 镜像
+RUN pip3 install --no-cache-dir --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple
 
-# 安装系统依赖，包括 gi 和 pycairo 所需的依赖
+# 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bluez \
     bluetooth \
@@ -23,12 +23,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 先复制 requirements.txt 以优化层缓存
+# 复制 requirements.txt
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt \
-    && apt-get purge -y --auto-remove gcc g++ pkg-config
 
-# 创建默认组和用户（UID/GID 将在运行时动态调整）
+# 安装 Python 依赖并启用缓存
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 清理构建工具
+RUN apt-get purge -y --auto-remove gcc g++ pkg-config
+
+# 创建默认组和用户
 RUN groupadd -g 1000 bluezgroup && \
     useradd -m -u 1000 -g 1000 -s /bin/bash bluezuser
 
