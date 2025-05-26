@@ -3,11 +3,7 @@ FROM python:3.9-slim
 # 设置工作目录
 WORKDIR /app
 
-# 定义构建参数以支持自定义 UID 和 GID
-ARG USER_UID=1000
-ARG USER_GID=1000
-
-# 安装系统依赖
+# 安装系统依赖，包括 gi 所需的依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bluez \
     bluetooth \
@@ -15,6 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     libbluetooth-dev \
     sudo \
+    libgirepository1.0-dev \
+    gir1.2-glib-2.0 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -22,10 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# 创建组和用户，基于指定的 UID 和 GID
-RUN groupadd -g ${USER_GID} bluezgroup && \
-    useradd -m -u ${USER_UID} -g ${USER_GID} -s /bin/bash bluezuser && \
-    echo "bluezuser ALL=(ALL) NOPASSWD: /usr/lib/bluetooth/bluetoothd" >> /etc/sudoers.d/bluezuser
+# 创建默认组和用户（UID/GID 将在运行时动态调整）
+RUN groupadd -g 1000 bluezgroup && \
+    useradd -m -u 1000 -g 1000 -s /bin/bash bluezuser
 
 # 复制 D-Bus 配置文件
 COPY bluezuser.conf /etc/dbus-1/system.d/bluezuser.conf
@@ -43,7 +40,7 @@ EXPOSE 5000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5000/ || exit 1
+  CMD curl -f http://localhost:5000 || exit 1
 
 # 设置入口点
 ENTRYPOINT ["./entrypoint.sh"]

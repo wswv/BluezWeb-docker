@@ -6,7 +6,7 @@ Bluetooth Management: Discover, pair, connect, and disconnect Bluetooth devices 
 Web Interface: A user-friendly interface built with Flask and styled with Tailwind CSS.
 GATT Service Browsing: View GATT services of paired devices.
 Logging: Integrated logging with support for Loki (optional) for debugging and monitoring.
-Custom UID/GID: Support for custom user and group IDs to match host system permissions.
+Custom UID/GID: Support for custom user and group IDs at runtime to match host system permissions.
 Secure D-Bus Configuration: Fine-grained D-Bus permissions for non-root user bluezuser.
 Dockerized: Runs in a lightweight container, optimized for Raspberry Pi (ARM architecture).
 
@@ -14,7 +14,7 @@ Prerequisites
 
 Raspberry Pi with a Bluetooth adapter (e.g., Raspberry Pi 4).
 Docker and Docker Compose installed on the Raspberry Pi.
-Access to the internet for building the Docker image and pulling dependencies.
+Access to the internet for pulling the pre-built Docker image.
 
 Installation
 1. Install Docker and Docker Compose
@@ -26,12 +26,15 @@ sudo apt-get update && sudo apt-get install -y docker-compose
 sudo reboot
 
 2. Clone or Create Project Directory
-Create a project directory and save the following files:
+Create a project directory and save the docker-compose.yml file:
 mkdir bluetooth-manager
 cd bluetooth-manager
-mkdir templates
 
-Required files:
+Required file:
+
+docker-compose.yml
+
+If you need to modify or rebuild the application, include these files:
 
 Dockerfile
 requirements.txt
@@ -39,39 +42,39 @@ bluezuser.conf
 entrypoint.sh
 app.py
 templates/index.html
-docker-compose.yml
 
-Ensure these files are placed in the correct directory structure:
+Directory structure (for pre-built image, only docker-compose.yml is needed):
 bluetooth-manager/
-├── Dockerfile
-├── requirements.txt
-├── bluezuser.conf
-├── entrypoint.sh
-├── app.py
-├── docker-compose.yml
-└── templates/
-    └── index.html
+└── docker-compose.yml
 
-3. (Optional) Configure Custom UID/GID
+3. Configure Docker Compose
+Edit docker-compose.yml to set the correct image name. Replace <username> with your Docker Hub or GitHub Container Registry username:
+image: docker.io/<username>/bluetooth-manager:latest
+
+For GitHub Container Registry, use:
+image: ghcr.io/<username>/bluetooth-manager:latest
+
+4. (Optional) Configure Custom UID/GID
 To match the Raspberry Pi's user (e.g., pi with UID=1000, GID=1000), create a .env file:
 echo "USER_UID=1000" >> .env
 echo "USER_GID=1000" >> .env
 
 Check your UID/GID with id pi. If not specified, defaults to USER_UID=1000 and USER_GID=1000.
-4. Build and Run with Docker Compose
-Build and start the services:
+5. Run with Docker Compose
+Pull and start the services:
 docker-compose up -d
 
 Alternatively, specify UID/GID directly:
 USER_UID=1001 USER_GID=1001 docker-compose up -d
 
 To enable Loki logging, uncomment the loki service and volumes in docker-compose.yml before running.
-5. Build with Docker (Alternative)
-If not using Docker Compose, build the image manually:
-docker build --build-arg USER_UID=1000 --build-arg USER_GID=1000 -t bluetooth-manager .
+6. (Optional) Build Locally
+If you need to build the image locally (e.g., for modifications), include all project files and run:
+docker-compose build
 
-Run the container:
-docker run --net=host --cap-add=NET_ADMIN -v /var/run/dbus:/var/run/dbus -p 5000:5000 -t bluetooth-manager
+Or build with Docker directly:
+docker build -t bluetooth-manager .
+docker run --net=host --cap-add=NET_ADMIN -v /var/run/dbus:/var/run/dbus -p 5000:5000 -e USER_UID=1000 -e USER_GID=1000 -t bluetooth-manager
 
 Usage
 
@@ -110,29 +113,32 @@ docker-compose down -v
 
 File Structure
 
-Dockerfile: Defines the Docker image, including BlueZ, Python dependencies, and custom UID/GID support.
-requirements.txt: Lists Python dependencies (flask, dasbus, python-logging-loki).
-bluezuser.conf: D-Bus configuration for bluezuser to access BlueZ interfaces, located at /etc/dbus-1/system.d/bluezuser.conf.
-entrypoint.sh: Script to initialize the Bluetooth adapter and start the Flask app.
-app.py: Flask application with Bluetooth management logic and logging.
-templates/index.html: Web interface styled with Tailwind CSS for device management.
 docker-compose.yml: Defines services for bluetooth-manager and optional loki logging.
+Dockerfile (optional for local build): Defines the Docker image with BlueZ, PyGObject, and Python dependencies.
+requirements.txt (optional): Lists Python dependencies (flask, dasbus, PyGObject, python-logging-loki).
+bluezuser.conf (optional): D-Bus configuration for bluezuser to access BlueZ interfaces, located at /etc/dbus-1/system.d/bluezuser.conf.
+entrypoint.sh (optional): Script to initialize the Bluetooth adapter, adjust UID/GID, and start the Flask app.
+app.py (optional): Flask application with Bluetooth management logic and logging.
+templates/index.html (optional): Web interface styled with Tailwind CSS.
 
 Notes
 
-Custom UID/GID: Ensure the specified UID/GID match the host system to avoid permission issues. Check with id <username> on the Raspberry Pi.
+Pre-built Image: Ensure the image field in docker-compose.yml points to the correct registry (e.g., docker.io/<username>/bluetooth-manager:latest or ghcr.io/<username>/bluetooth-manager:latest).
+Custom UID/GID: Set via .env or environment variables to match the host system (check with id <username>).
 Loki Logging: Optional. Remove python-logging-loki from requirements.txt and related code in app.py if not using Loki. Uncomment the loki service in docker-compose.yml to enable.
-ARM Compatibility: Build the image on the Raspberry Pi to ensure ARM architecture compatibility.
-Security: The D-Bus configuration is restricted to essential BlueZ interfaces. Avoid running the container with --privileged for better security.
-Health Check: The bluetooth-manager service includes a health check to monitor the Flask server (curl http://localhost:5000).
+ARM Compatibility: The image must be built for ARM architecture (e.g., via GitHub Actions with ARM support).
+Security: The D-Bus configuration is restricted to essential BlueZ interfaces. Avoid running with --privileged.
+PyGObject Dependency: The gi module (via PyGObject) is required for dasbus. Ensure libgirepository1.0-dev and gir1.2-glib-2.0 are included in the image.
 
 Troubleshooting
 
+ModuleNotFoundError: No module named 'gi': Ensure PyGObject is in requirements.txt and system dependencies (libgirepository1.0-dev, gir1.2-glib-2.0) are installed in the Dockerfile. Rebuild the image if necessary.
+Image Not Found: Verify the image field in docker-compose.yml matches the registry path. Pull the image manually with docker pull <image>.
 Bluetooth Adapter Not Found: Ensure the Raspberry Pi's Bluetooth adapter is enabled (hciconfig hci0 up).
-D-Bus Errors: Verify /etc/dbus-1/system.d/bluezuser.conf is correctly copied and permissions are set (644).
+D-Bus Errors: Verify /etc/dbus-1/system.d/bluezuser.conf exists in the image and has correct permissions (644).
 Web Interface Unreachable: Check if port 5000 is open and the Raspberry Pi's IP is correct.
 Permission Issues: Confirm the container has NET_ADMIN capability and the D-Bus socket is mounted.
-Loki Not Working: Ensure the loki service is uncommented in docker-compose.yml and the URL in app.py matches (http://loki:3100/loki/api/v1/push).
+Loki Not Working: Ensure the loki service is uncommented and the URL in app.py matches (http://loki:3100/loki/api/v1/push).
 
 Future Improvements
 
