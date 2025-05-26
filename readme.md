@@ -132,13 +132,71 @@ PyGObject Dependency: The gi module (via PyGObject) is required for dasbus. Ensu
 
 Troubleshooting
 
-ModuleNotFoundError: No module named 'gi': Ensure PyGObject is in requirements.txt and system dependencies (libgirepository1.0-dev, gir1.2-glib-2.0) are installed in the Dockerfile. Rebuild the image if necessary.
-Image Not Found: Verify the image field in docker-compose.yml matches the registry path. Pull the image manually with docker pull <image>.
-Bluetooth Adapter Not Found: Ensure the Raspberry Pi's Bluetooth adapter is enabled (hciconfig hci0 up).
+ModuleNotFoundError: No module named 'gi':
+
+Cause: The PyGObject module is missing, required by dasbus for D-Bus communication.
+Fix: Ensure PyGObject is in requirements.txt and libgirepository1.0-dev, gir1.2-glib-2.0 are installed in the Dockerfile. Rebuild the image:docker-compose build
+
+Verify installation:docker exec <container_id> python3 -c "import gi; print(gi.__version__)"
+
+If using GitHub Actions, ensure the workflow rebuilds and pushes the updated image.
+
+
+Can't open HCI socket: Address family not supported by protocol:
+
+Cause: The Bluetooth adapter is not detected, disabled, or the container lacks permissions.
+Fix:
+Ensure the Bluetooth adapter is enabled on the host:sudo hciconfig hci0 up
+
+
+Verify Bluetooth kernel modules are loaded:lsmod | grep bluetooth
+sudo modprobe bluetooth
+sudo modprobe btusb
+
+
+Check docker-compose.yml includes network_mode: host and cap_add: NET_ADMIN.
+Verify entrypoint.sh checks for the adapter (hciconfig hci0).
+
+
+
+
+sudo: /usr/lib/bluetooth/bluetoothd: command not found:
+
+Cause: The bluetoothd binary is missing or at a different path (e.g., /usr/libexec/bluetooth/bluetoothd).
+Fix:
+Ensure bluez is installed in the Dockerfile:docker exec <container_id> dpkg -l | grep bluez
+
+
+Verify the correct path in entrypoint.sh (/usr/libexec/bluetooth/bluetoothd).
+Rebuild the image if bluez is missing:docker-compose build
+
+
+
+
+
+
+Traceback involving dasbus and gi:
+
+Cause: The dasbus library fails to import due to a missing gi module.
+Fix: Same as for ModuleNotFoundError: No module named 'gi'. Ensure PyGObject and its system dependencies are installed. Verify dasbus installation:docker exec <container_id> python3 -c "import dasbus; print(dasbus.__version__)"
+
+
+
+
+Image Not Found: Verify the image field in docker-compose.yml matches the registry path. Pull the image manually:
+docker pull docker.io/<username>/bluetooth-manager:latest
+
+
+Bluetooth Adapter Not Found: Ensure the Raspberry Pi’s Bluetooth adapter is enabled (hciconfig hci0 up).
+
 D-Bus Errors: Verify /etc/dbus-1/system.d/bluezuser.conf exists in the image and has correct permissions (644).
-Web Interface Unreachable: Check if port 5000 is open and the Raspberry Pi's IP is correct.
+
+Web Interface Unreachable: Check if port 5000 is open and the Raspberry Pi’s IP is correct.
+
 Permission Issues: Confirm the container has NET_ADMIN capability and the D-Bus socket is mounted.
+
 Loki Not Working: Ensure the loki service is uncommented and the URL in app.py matches (http://loki:3100/loki/api/v1/push).
+
 
 Future Improvements
 
